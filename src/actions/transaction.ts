@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { TransactionSchema } from "@/types/schemas";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { transactionParamsSchema } from "@/lib/validations/transaction-params";
+import { Prisma } from "@prisma/client";
 
 // Utility check Auth
 async function getUserId() {
@@ -38,7 +40,7 @@ export async function createTransaction(data: z.infer<typeof TransactionSchema>)
   }
 }
 
-// 2. READ Transactions
+// 2. READ Transactions (Dashboard Summary)
 export async function getTransactions(take: number = 50, filterType: string = "All") {
   try {
     const userId = await getUserId();
@@ -95,6 +97,117 @@ export async function getTransactions(take: number = 50, filterType: string = "A
     return { error: err.message || "Gagal mengambil data" };
   }
 }
+
+// 2.1 READ Filtered Transactions (Transaction Page with Pagination)
+export async function getFilteredTransactions(params: unknown, pageSize: number = 10) {
+  try {
+    const userId = await getUserId();
+    const parsedParams = transactionParamsSchema.parse(params);
+    const { page, search, category, from, to, type, sortBy, sortOrder } = parsedParams;
+
+    // Build the query where clause
+    const whereClause: Prisma.TransactionWhereInput = {
+      userId,
+    };
+
+    if (search) {
+      whereClause.note = {
+        contains: search,
+        mode: "insensitive", // Postgres valid option
+      };
+    }
+
+    if (category) {
+      const categoryIds = category.split(",").filter(Boolean);
+      if (categoryIds.length > 0) {
+        whereClause.categoryId = {
+          in: categoryIds,
+        };
+      }
+    }
+
+    if (type !== "ALL") {
+      whereClause.type = type;
+    }
+
+    if (from || to) {
+      whereClause.date = {};
+      if (from) {
+        whereClause.date.gte = new Date(`${from}T00:00:00.000Z`);
+      }
+      if (to) {
+        whereClause.date.lte = new Date(`${to}T23:59:59.999Z`);
+      }
+    }
+
+    // Combine queries for performance (transactions list + summary)
+    const skip = (page - 1) * pageSize;
+
+    const [transactions, totalCount, summaryData] = await Promise.all([
+      // 1. Get transaction list with pagination
+      prisma.transaction.findMany({
+        where: whereClause,
+        include: {
+          category: true,
+        },
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
+        skip,
+        take: pageSize,
+      }),
+      // 2. Get total count for pagination math
+      prisma.transaction.count({
+        where: whereClause,
+      }),
+      // 3. Get total sum for incomes and expenses for the _filtered_ data
+      prisma.transaction.groupBy({
+        by: ["type"],
+        where: whereClause,
+        _sum: {
+          amount: true,
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    // Parse summary
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    summaryData.forEach((item) => {
+      if (item.type === "INCOME") {
+        totalIncome = Number(item._sum.amount || 0);
+      } else if (item.type === "EXPENSE") {
+        totalExpense = Number(item._sum.amount || 0);
+      }
+    });
+
+    return {
+      data: transactions.map((tx) => ({
+        ...tx,
+        amount: Number(tx.amount),
+      })),
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: page,
+        pageSize,
+      },
+      summary: {
+        totalIncome,
+        totalExpense,
+        net: totalIncome - totalExpense,
+      },
+    };
+
+  } catch (err: any) {
+    console.error("Failed to fetch filtered transactions", err);
+    return { error: err.message || "Gagal mengambil data" };
+  }
+}
+
 
 // 3. DELETE Transaction
 export async function deleteTransaction(id: string) {

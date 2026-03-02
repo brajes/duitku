@@ -427,10 +427,10 @@ export interface HeatmapDay {
   amount: number;
 }
 
-export async function getSpendingHeatmap(
+async function _getSpendingHeatmap(
+  userId: string,
   year: number
 ): Promise<HeatmapDay[]> {
-  const userId = await getUserId();
   const dateFrom = new Date(`${year}-01-01T00:00:00.000Z`);
   const dateTo = new Date(`${year}-12-31T23:59:59.999Z`);
 
@@ -458,6 +458,13 @@ export async function getSpendingHeatmap(
   });
 }
 
+export async function getSpendingHeatmap(
+  year: number
+): Promise<HeatmapDay[]> {
+  const userId = await getUserId();
+  return _getSpendingHeatmap(userId, year);
+}
+
 // ── 8. Budget vs Actual ─────────────────────────────────────────────
 export interface BudgetVsActualItem {
   categoryName: string;
@@ -469,12 +476,11 @@ export interface BudgetVsActualItem {
   status: "safe" | "warning" | "over";
 }
 
-export async function getBudgetVsActual(
+async function _getBudgetVsActual(
+  userId: string,
   month: number,
   year: number
 ): Promise<BudgetVsActualItem[]> {
-  const userId = await getUserId();
-
   // Get budgets for the month/year
   const budgets = await prisma.budget.findMany({
     where: { userId, month, year },
@@ -524,6 +530,14 @@ export async function getBudgetVsActual(
   });
 }
 
+export async function getBudgetVsActual(
+  month: number,
+  year: number
+): Promise<BudgetVsActualItem[]> {
+  const userId = await getUserId();
+  return _getBudgetVsActual(userId, month, year);
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // 🚀 UNIFIED REPORT DATA FETCHER — Single auth call, all queries parallel
 // ══════════════════════════════════════════════════════════════════════
@@ -544,10 +558,10 @@ export async function getAllReportData(
   currentYear: number,
   currentMonth: number
 ): Promise<AllReportData> {
-  // Single auth call for all report data
+  // Single auth call for ALL report data
   const userId = await getUserId();
 
-  // Execute ALL queries in parallel
+  // 🚀 Execute ALL 8 queries in a SINGLE parallel batch
   const [
     summary,
     expenseBreakdown,
@@ -555,6 +569,8 @@ export async function getAllReportData(
     trendData,
     topExpenses,
     monthComparison,
+    heatmapData,
+    budgetData,
   ] = await Promise.all([
     _getReportSummary(userId, from, to),
     _getCategoryBreakdown(userId, from, to, "EXPENSE"),
@@ -562,13 +578,8 @@ export async function getAllReportData(
     _getIncomeExpenseTrend(userId, from, to),
     _getTopExpenses(userId, from, to, 5),
     _getMonthComparison(userId, 3),
-  ]);
-
-  // These need separate auth but are fast — run them together
-  // (They use their own getUserId since they're also used standalone)
-  const [heatmapData, budgetData] = await Promise.all([
-    getSpendingHeatmap(currentYear),
-    getBudgetVsActual(currentMonth, currentYear),
+    _getSpendingHeatmap(userId, currentYear),
+    _getBudgetVsActual(userId, currentMonth, currentYear),
   ]);
 
   return {

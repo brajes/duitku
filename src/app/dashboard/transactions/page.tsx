@@ -22,14 +22,18 @@ export default async function TransactionsPage(props: {
     return null;
   }
 
-  // Fetch data
-  const { data, pagination, summary, error } = await getFilteredTransactions(searchParams, 10);
-  
-  // Fetch user categories for filter dropdown
-  const categories = await prisma.category.findMany({
-    where: { userId: user.id },
-    orderBy: { name: "asc" }
-  });
+  const userId = user.id;
+
+  // Fetch data and categories in parallel, passing userId to avoid redundant auth
+  const [result, categories] = await Promise.all([
+    getFilteredTransactions(searchParams, 10, userId),
+    prisma.category.findMany({
+      where: { userId },
+      orderBy: { name: "asc" }
+    }),
+  ]);
+
+  const { data, pagination, summary, error } = result;
 
   if (error) {
     return (

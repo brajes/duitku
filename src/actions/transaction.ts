@@ -41,9 +41,9 @@ export async function createTransaction(data: z.infer<typeof TransactionSchema>)
 }
 
 // 2. READ Transactions (Dashboard Summary)
-export async function getTransactions(take: number = 50, filterType: string = "All") {
+export async function getTransactions(take: number = 50, filterType: string = "All", passedUserId?: string) {
   try {
-    const userId = await getUserId();
+    const userId = passedUserId ?? await getUserId();
     
     // Setup filter dates
     let dateFilter = {};
@@ -99,9 +99,9 @@ export async function getTransactions(take: number = 50, filterType: string = "A
 }
 
 // 2.1 Dashboard Summary (aggregated from ALL transactions at DB level)
-export async function getDashboardSummary() {
+export async function getDashboardSummary(passedUserId?: string) {
   try {
-    const userId = await getUserId();
+    const userId = passedUserId ?? await getUserId();
 
     const summaryData = await prisma.transaction.groupBy({
       by: ["type"],
@@ -124,9 +124,9 @@ export async function getDashboardSummary() {
 }
 
 // 2.2 READ Filtered Transactions (Transaction Page with Pagination)
-export async function getFilteredTransactions(params: unknown, pageSize: number = 10) {
+export async function getFilteredTransactions(params: unknown, pageSize: number = 10, passedUserId?: string) {
   try {
-    const userId = await getUserId();
+    const userId = passedUserId ?? await getUserId();
     const parsedParams = transactionParamsSchema.parse(params);
     const { page, search, category, from, to, type, sortBy, sortOrder } = parsedParams;
 

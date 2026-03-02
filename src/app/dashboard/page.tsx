@@ -8,18 +8,19 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 export default async function DashboardPage() {
-  // Auth is already checked in dashboard layout — no need to check again
+  // Auth is already checked in dashboard layout — get user from cookie (no extra network call)
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const userId = user!.id;
 
-  // Fetch categories and transactions in parallel
+  // Fetch ALL data in a single parallel batch, passing userId to avoid redundant auth calls
   const [dbUser, txRes, summary] = await Promise.all([
     prisma.user.findUnique({
-      where: { id: user!.id },
+      where: { id: userId },
       include: { categories: true },
     }),
-    getTransactions(5),
-    getDashboardSummary(),
+    getTransactions(5, "All", userId),
+    getDashboardSummary(userId),
   ]);
 
   if (!dbUser) {

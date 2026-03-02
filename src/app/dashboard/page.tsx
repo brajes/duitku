@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TransactionForm } from "@/components/dashboard/TransactionForm";
 import { TransactionTable } from "@/components/dashboard/TransactionTable";
-import { ExpenseChart } from "@/components/dashboard/ExpenseChart";
+import { TransactionModal } from "@/components/dashboard/TransactionModal";
 import { getTransactions } from "@/actions/transaction";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 export default async function DashboardPage({
   searchParams,
@@ -26,7 +26,7 @@ export default async function DashboardPage({
       where: { id: user!.id },
       include: { categories: true },
     }),
-    getTransactions(50, filterType),
+    getTransactions(5, filterType),
   ]);
 
   if (!dbUser) {
@@ -61,70 +61,63 @@ export default async function DashboardPage({
           </CardContent>
         </Card>
         
-        <Card className="lg:col-span-2 shadow-sm flex flex-col sm:flex-row gap-4 justify-around items-center p-6">
-          <div className="text-center">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Pemasukan</p>
-            <h3 className="text-2xl font-bold text-green-600 dark:text-green-400">
-              + Rp {totalIncome.toLocaleString("id-ID")}
-            </h3>
+        <Card className="lg:col-span-2 shadow-sm flex flex-col gap-4 p-6">
+          <div className="flex flex-col sm:flex-row gap-4 justify-around items-center">
+            <div className="text-center">
+              <p className="text-sm font-medium text-muted-foreground mb-1">Pemasukan</p>
+              <h3 className="text-2xl font-bold text-green-600 dark:text-green-400">
+                + Rp {totalIncome.toLocaleString("id-ID")}
+              </h3>
+            </div>
+            <div className="h-10 w-px bg-border hidden sm:block"></div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-muted-foreground mb-1">Pengeluaran</p>
+              <h3 className="text-2xl font-bold text-red-600 dark:text-red-400">
+                - Rp {totalExpense.toLocaleString("id-ID")}
+              </h3>
+            </div>
           </div>
-          <div className="h-10 w-px bg-border hidden sm:block"></div>
-          <div className="text-center">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Pengeluaran</p>
-            <h3 className="text-2xl font-bold text-red-600 dark:text-red-400">
-              - Rp {totalExpense.toLocaleString("id-ID")}
-            </h3>
+          <div className="flex justify-center sm:justify-end">
+            <TransactionModal categories={dbUser.categories} />
           </div>
         </Card>
       </div>
 
-      {/* FORM TRANSACTION */}
-      <Card className="lg:col-span-1 border-t-4 border-t-indigo-500 rounded-t-sm shadow-sm">
-        <CardHeader>
-          <CardTitle>Catat Transaksi</CardTitle>
-          <CardDescription>Masukkan rincian pemasukan/pengeluaran baru.</CardDescription>
+      {/* DAFTAR 5 TRANSAKSI TERAKHIR (full-width) */}
+      <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-lg">Daftar Transaksi</CardTitle>
+            <CardDescription>5 Transaksi Terakhir</CardDescription>
+          </div>
+          
+          {/* Filters Menu */}
+          <div className="flex bg-slate-200/50 dark:bg-slate-800 p-1 rounded-md text-sm font-medium w-fit">
+            <Link href="/dashboard?filter=Today" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Today" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
+              Hari ini
+            </Link>
+            <Link href="/dashboard?filter=Week" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Week" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
+              7 Hari
+            </Link>
+            <Link href="/dashboard?filter=Month" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Month" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
+              30 Hari
+            </Link>
+            <Link href="/dashboard?filter=All" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "All" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
+              Semua
+            </Link>
+          </div>
         </CardHeader>
-        <CardContent>
-          <TransactionForm categories={dbUser.categories} />
+        <CardContent className="space-y-4">
+          <TransactionTable transactions={transactions || []} />
+          <Link
+            href="/dashboard/transactions"
+            className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+          >
+            Lihat Semua Transaksi
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </CardContent>
       </Card>
-
-      {/* Grid Charts & Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-         <div className="lg:col-span-1">
-           <ExpenseChart transactions={transactions || []} />
-         </div>
-
-         <div className="lg:col-span-2">
-           <Card className="h-full bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
-             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-               <div>
-                 <CardTitle className="text-lg">Daftar Transaksi</CardTitle>
-                 <CardDescription>Semua rekam jejak finansial Anda.</CardDescription>
-               </div>
-               
-               {/* Filters Menu */}
-               <div className="flex bg-slate-200/50 dark:bg-slate-800 p-1 rounded-md text-sm font-medium w-fit">
-                  <Link href="/dashboard?filter=Today" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Today" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-                     Hari ini
-                  </Link>
-                  <Link href="/dashboard?filter=Week" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Week" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-                     7 Hari
-                  </Link>
-                  <Link href="/dashboard?filter=Month" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Month" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-                     30 Hari
-                  </Link>
-                  <Link href="/dashboard?filter=All" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "All" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-                     Semua
-                  </Link>
-               </div>
-             </CardHeader>
-             <CardContent>
-               <TransactionTable transactions={transactions || []} />
-             </CardContent>
-           </Card>
-         </div>
-      </div>
     </main>
   );
 }

@@ -1,14 +1,6 @@
 import { Suspense } from "react";
 import { reportParamsSchema } from "@/lib/validations/report-params";
-import {
-  getReportSummary,
-  getCategoryBreakdown,
-  getIncomeExpenseTrend,
-  getTopExpenses,
-  getMonthComparison,
-  getSpendingHeatmap,
-  getBudgetVsActual,
-} from "@/actions/report";
+import { getAllReportData } from "@/actions/report";
 
 import { ReportDateFilter } from "@/components/reports/report-date-filter";
 import { PeriodSummaryCards } from "@/components/reports/period-summary-cards";
@@ -44,8 +36,8 @@ export default async function ReportsPage({
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
-  // Fetch all data in parallel
-  const [
+  // 🚀 Single unified call — 1 auth check, all queries in parallel
+  const {
     summary,
     expenseBreakdown,
     incomeBreakdown,
@@ -54,16 +46,7 @@ export default async function ReportsPage({
     monthComparison,
     heatmapData,
     budgetData,
-  ] = await Promise.all([
-    getReportSummary(from, to),
-    getCategoryBreakdown(from, to, "EXPENSE"),
-    getCategoryBreakdown(from, to, "INCOME"),
-    getIncomeExpenseTrend(from, to),
-    getTopExpenses(from, to, 5),
-    getMonthComparison(3),
-    getSpendingHeatmap(currentYear),
-    getBudgetVsActual(currentMonth, currentYear),
-  ]);
+  } = await getAllReportData(from, to, currentYear, currentMonth);
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">

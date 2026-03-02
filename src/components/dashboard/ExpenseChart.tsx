@@ -42,7 +42,7 @@ export function ExpenseChart({ transactions }: { transactions: any[] }) {
         <CardDescription>Berdasarkan Kategori</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px] w-full">
+        <div className="h-[300px] w-full" style={{ minWidth: 1 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie

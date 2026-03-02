@@ -1,6 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TransactionForm } from "@/components/dashboard/TransactionForm";
 import { TransactionTable } from "@/components/dashboard/TransactionTable";
@@ -13,30 +12,27 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+  // Auth is already checked in dashboard layout — no need to check again
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   // Parse filters parameter
   const resolvedParams = await searchParams;
   const filterType = typeof resolvedParams.filter === "string" ? resolvedParams.filter : "All";
 
-  // Ambil profil User dan Kategori
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: { categories: true },
-  });
+  // Fetch categories and transactions in parallel
+  const [dbUser, txRes] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: user!.id },
+      include: { categories: true },
+    }),
+    getTransactions(50, filterType),
+  ]);
 
   if (!dbUser) {
     return <div>Akun tidak ditemukan. Silakan login ulang.</div>;
   }
 
-  // Ambil Transaksi (Terapkan filter ke server action)
-  const txRes = await getTransactions(50, filterType);
-  
   const transactions = txRes.data;
   
   // Kalkulasi Saldo

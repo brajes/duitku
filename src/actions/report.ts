@@ -11,7 +11,6 @@ import {
   startOfMonth,
   endOfMonth,
   format,
-  parseISO,
   eachDayOfInterval,
   eachWeekOfInterval,
   eachMonthOfInterval,
@@ -53,11 +52,11 @@ export interface ReportSummary {
   };
 }
 
-export async function getReportSummary(
+async function _getReportSummary(
+  userId: string,
   from: string,
   to: string
 ): Promise<ReportSummary> {
-  const userId = await getUserId();
   const dateFrom = toStartOfDay(from);
   const dateTo = toEndOfDay(to);
   const dayCount = differenceInDays(dateTo, dateFrom) + 1;
@@ -123,6 +122,15 @@ export async function getReportSummary(
   };
 }
 
+// Public wrapper (for standalone calls)
+export async function getReportSummary(
+  from: string,
+  to: string
+): Promise<ReportSummary> {
+  const userId = await getUserId();
+  return _getReportSummary(userId, from, to);
+}
+
 // ── 2. Category Breakdown ────────────────────────────────────────────
 export interface CategoryBreakdownItem {
   categoryId: string;
@@ -134,12 +142,12 @@ export interface CategoryBreakdownItem {
   percentage: number;
 }
 
-export async function getCategoryBreakdown(
+async function _getCategoryBreakdown(
+  userId: string,
   from: string,
   to: string,
   type: TransactionType
 ): Promise<CategoryBreakdownItem[]> {
-  const userId = await getUserId();
   const dateFrom = toStartOfDay(from);
   const dateTo = toEndOfDay(to);
 
@@ -178,6 +186,15 @@ export async function getCategoryBreakdown(
   });
 }
 
+export async function getCategoryBreakdown(
+  from: string,
+  to: string,
+  type: TransactionType
+): Promise<CategoryBreakdownItem[]> {
+  const userId = await getUserId();
+  return _getCategoryBreakdown(userId, from, to, type);
+}
+
 // ── 3. Income vs Expense Trend ───────────────────────────────────────
 export interface TrendDataPoint {
   label: string;
@@ -185,11 +202,11 @@ export interface TrendDataPoint {
   expense: number;
 }
 
-export async function getIncomeExpenseTrend(
+async function _getIncomeExpenseTrend(
+  userId: string,
   from: string,
   to: string
 ): Promise<TrendDataPoint[]> {
-  const userId = await getUserId();
   const dateFrom = toStartOfDay(from);
   const dateTo = toEndOfDay(to);
   const totalDays = differenceInDays(dateTo, dateFrom) + 1;
@@ -260,6 +277,14 @@ export async function getIncomeExpenseTrend(
   });
 }
 
+export async function getIncomeExpenseTrend(
+  from: string,
+  to: string
+): Promise<TrendDataPoint[]> {
+  const userId = await getUserId();
+  return _getIncomeExpenseTrend(userId, from, to);
+}
+
 // ── 4. Top Expenses ──────────────────────────────────────────────────
 export interface TopExpenseItem {
   id: string;
@@ -270,12 +295,12 @@ export interface TopExpenseItem {
   categoryIcon: string | null;
 }
 
-export async function getTopExpenses(
+async function _getTopExpenses(
+  userId: string,
   from: string,
   to: string,
   limit: number = 5
 ): Promise<TopExpenseItem[]> {
-  const userId = await getUserId();
   const dateFrom = toStartOfDay(from);
   const dateTo = toEndOfDay(to);
 
@@ -300,49 +325,68 @@ export async function getTopExpenses(
   }));
 }
 
-// ── 5. Month-over-Month Comparison ──────────────────────────────────
+export async function getTopExpenses(
+  from: string,
+  to: string,
+  limit: number = 5
+): Promise<TopExpenseItem[]> {
+  const userId = await getUserId();
+  return _getTopExpenses(userId, from, to, limit);
+}
+
+// ── 5. Month-over-Month Comparison (OPTIMIZED: parallel queries) ────
 export interface MonthComparisonItem {
   label: string;
   income: number;
   expense: number;
 }
 
-export async function getMonthComparison(
+async function _getMonthComparison(
+  userId: string,
   months: number = 3
 ): Promise<MonthComparisonItem[]> {
-  const userId = await getUserId();
   const now = new Date();
-  const results: MonthComparisonItem[] = [];
 
-  for (let i = months - 1; i >= 0; i--) {
-    const target = subMonths(now, i);
-    const mStart = startOfMonth(target);
-    const mEnd = endOfMonth(target);
+  // Build all queries upfront, then execute in parallel
+  const monthTargets = Array.from({ length: months }, (_, i) => {
+    const target = subMonths(now, months - 1 - i);
+    return {
+      start: startOfMonth(target),
+      end: endOfMonth(target),
+      label: format(startOfMonth(target), "MMM yyyy", { locale: localeId }),
+    };
+  });
 
-    const agg = await prisma.transaction.groupBy({
-      by: ["type"],
-      where: {
-        userId,
-        date: { gte: mStart, lte: mEnd },
-      },
-      _sum: { amount: true },
-    });
+  const aggregations = await Promise.all(
+    monthTargets.map((m) =>
+      prisma.transaction.groupBy({
+        by: ["type"],
+        where: {
+          userId,
+          date: { gte: m.start, lte: m.end },
+        },
+        _sum: { amount: true },
+      })
+    )
+  );
 
+  return monthTargets.map((m, i) => {
+    const agg = aggregations[i];
     const income = Number(
       agg.find((a) => a.type === "INCOME")?._sum.amount ?? 0
     );
     const expense = Number(
       agg.find((a) => a.type === "EXPENSE")?._sum.amount ?? 0
     );
+    return { label: m.label, income, expense };
+  });
+}
 
-    results.push({
-      label: format(mStart, "MMM yyyy", { locale: localeId }),
-      income,
-      expense,
-    });
-  }
-
-  return results;
+export async function getMonthComparison(
+  months: number = 3
+): Promise<MonthComparisonItem[]> {
+  const userId = await getUserId();
+  return _getMonthComparison(userId, months);
 }
 
 // ── 6. Export Transactions (for CSV) ────────────────────────────────
@@ -478,4 +522,63 @@ export async function getBudgetVsActual(
       status,
     };
   });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 🚀 UNIFIED REPORT DATA FETCHER — Single auth call, all queries parallel
+// ══════════════════════════════════════════════════════════════════════
+export interface AllReportData {
+  summary: ReportSummary;
+  expenseBreakdown: CategoryBreakdownItem[];
+  incomeBreakdown: CategoryBreakdownItem[];
+  trendData: TrendDataPoint[];
+  topExpenses: TopExpenseItem[];
+  monthComparison: MonthComparisonItem[];
+  heatmapData: HeatmapDay[];
+  budgetData: BudgetVsActualItem[];
+}
+
+export async function getAllReportData(
+  from: string,
+  to: string,
+  currentYear: number,
+  currentMonth: number
+): Promise<AllReportData> {
+  // Single auth call for all report data
+  const userId = await getUserId();
+
+  // Execute ALL queries in parallel
+  const [
+    summary,
+    expenseBreakdown,
+    incomeBreakdown,
+    trendData,
+    topExpenses,
+    monthComparison,
+  ] = await Promise.all([
+    _getReportSummary(userId, from, to),
+    _getCategoryBreakdown(userId, from, to, "EXPENSE"),
+    _getCategoryBreakdown(userId, from, to, "INCOME"),
+    _getIncomeExpenseTrend(userId, from, to),
+    _getTopExpenses(userId, from, to, 5),
+    _getMonthComparison(userId, 3),
+  ]);
+
+  // These need separate auth but are fast — run them together
+  // (They use their own getUserId since they're also used standalone)
+  const [heatmapData, budgetData] = await Promise.all([
+    getSpendingHeatmap(currentYear),
+    getBudgetVsActual(currentMonth, currentYear),
+  ]);
+
+  return {
+    summary,
+    expenseBreakdown,
+    incomeBreakdown,
+    trendData,
+    topExpenses,
+    monthComparison,
+    heatmapData,
+    budgetData,
+  };
 }

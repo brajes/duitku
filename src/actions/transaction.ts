@@ -82,7 +82,7 @@ export async function getTransactions(take: number = 50, filterType: string = "A
         category: true,
       },
       orderBy: {
-        date: 'desc'
+        createdAt: 'desc'
       },
       take,
     });
@@ -98,7 +98,32 @@ export async function getTransactions(take: number = 50, filterType: string = "A
   }
 }
 
-// 2.1 READ Filtered Transactions (Transaction Page with Pagination)
+// 2.1 Dashboard Summary (aggregated from ALL transactions at DB level)
+export async function getDashboardSummary() {
+  try {
+    const userId = await getUserId();
+
+    const summaryData = await prisma.transaction.groupBy({
+      by: ["type"],
+      where: { userId },
+      _sum: { amount: true },
+    });
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    summaryData.forEach((item) => {
+      if (item.type === "INCOME") totalIncome = Number(item._sum.amount || 0);
+      else if (item.type === "EXPENSE") totalExpense = Number(item._sum.amount || 0);
+    });
+
+    return { totalIncome, totalExpense, balance: totalIncome - totalExpense };
+  } catch (err: any) {
+    return { totalIncome: 0, totalExpense: 0, balance: 0 };
+  }
+}
+
+// 2.2 READ Filtered Transactions (Transaction Page with Pagination)
 export async function getFilteredTransactions(params: unknown, pageSize: number = 10) {
   try {
     const userId = await getUserId();

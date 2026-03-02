@@ -3,30 +3,23 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TransactionTable } from "@/components/dashboard/TransactionTable";
 import { TransactionModal } from "@/components/dashboard/TransactionModal";
-import { getTransactions } from "@/actions/transaction";
+import { getTransactions, getDashboardSummary } from "@/actions/transaction";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
+export default async function DashboardPage() {
   // Auth is already checked in dashboard layout — no need to check again
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Parse filters parameter
-  const resolvedParams = await searchParams;
-  const filterType = typeof resolvedParams.filter === "string" ? resolvedParams.filter : "All";
-
   // Fetch categories and transactions in parallel
-  const [dbUser, txRes] = await Promise.all([
+  const [dbUser, txRes, summary] = await Promise.all([
     prisma.user.findUnique({
       where: { id: user!.id },
       include: { categories: true },
     }),
-    getTransactions(5, filterType),
+    getTransactions(5),
+    getDashboardSummary(),
   ]);
 
   if (!dbUser) {
@@ -34,17 +27,7 @@ export default async function DashboardPage({
   }
 
   const transactions = txRes.data;
-  
-  // Kalkulasi Saldo
-  let totalIncome = 0;
-  let totalExpense = 0;
-  
-  transactions?.forEach((tx) => {
-    if (tx.type === "INCOME") totalIncome += Number(tx.amount);
-    if (tx.type === "EXPENSE") totalExpense += Number(tx.amount);
-  });
-  
-  const balance = totalIncome - totalExpense;
+  const { totalIncome, totalExpense, balance } = summary;
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
@@ -85,27 +68,9 @@ export default async function DashboardPage({
 
       {/* DAFTAR 5 TRANSAKSI TERAKHIR (full-width) */}
       <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-lg">Daftar Transaksi</CardTitle>
-            <CardDescription>5 Transaksi Terakhir</CardDescription>
-          </div>
-          
-          {/* Filters Menu */}
-          <div className="flex bg-slate-200/50 dark:bg-slate-800 p-1 rounded-md text-sm font-medium w-fit">
-            <Link href="/dashboard?filter=Today" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Today" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-              Hari ini
-            </Link>
-            <Link href="/dashboard?filter=Week" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Week" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-              7 Hari
-            </Link>
-            <Link href="/dashboard?filter=Month" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "Month" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-              30 Hari
-            </Link>
-            <Link href="/dashboard?filter=All" className={`px-3 py-1.5 rounded-sm transition-all ${filterType === "All" ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-muted-foreground hover:text-foreground"}`}>
-              Semua
-            </Link>
-          </div>
+        <CardHeader>
+          <CardTitle className="text-lg">Daftar Transaksi</CardTitle>
+          <CardDescription>5 Transaksi Terakhir</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <TransactionTable transactions={transactions || []} />

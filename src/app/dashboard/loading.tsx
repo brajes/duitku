@@ -19,61 +19,36 @@ export default function DashboardLoading() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 shadow-sm flex flex-col sm:flex-row gap-4 justify-around items-center p-6">
-          <div className="text-center space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Pemasukan</p>
-            <Skeleton className="h-8 w-36" />
+        <Card className="lg:col-span-2 shadow-sm flex flex-col gap-4 p-6">
+          <div className="flex flex-col sm:flex-row gap-4 justify-around items-center">
+            <div className="text-center space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Pemasukan</p>
+              <Skeleton className="h-8 w-36" />
+            </div>
+            <div className="h-10 w-px bg-border hidden sm:block" />
+            <div className="text-center space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Pengeluaran</p>
+              <Skeleton className="h-8 w-36" />
+            </div>
           </div>
-          <div className="h-10 w-px bg-border hidden sm:block" />
-          <div className="text-center space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Pengeluaran</p>
-            <Skeleton className="h-8 w-36" />
+          <div className="flex justify-center sm:justify-end">
+            <Skeleton className="h-10 w-40" />
           </div>
         </Card>
       </div>
 
-      {/* FORM SKELETON */}
-      <Card className="lg:col-span-1 border-t-4 border-t-indigo-500 rounded-t-sm shadow-sm">
+      {/* DAFTAR 5 TRANSAKSI TERAKHIR */}
+      <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
         <CardHeader>
-          <CardTitle>Catat Transaksi</CardTitle>
-          <CardDescription>Masukkan rincian pemasukan/pengeluaran baru.</CardDescription>
+          <CardTitle className="text-lg">Daftar Transaksi</CardTitle>
+          <CardDescription>5 Transaksi Terakhir</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-          <Skeleton className="h-10 w-32" />
+        <CardContent className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
         </CardContent>
       </Card>
-
-      {/* Grid Charts & Tables Skeleton */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        <div className="lg:col-span-1">
-          <Card className="h-full bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Distribusi Pengeluaran</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-[300px] w-full rounded-lg" />
-            </CardContent>
-          </Card>
-        </div>
-        <div className="lg:col-span-2">
-          <Card className="h-full bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Daftar Transaksi</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </main>
   );
 }
